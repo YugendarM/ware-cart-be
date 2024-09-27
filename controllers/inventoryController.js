@@ -24,16 +24,12 @@ const getInventoryById = async(request, response) => {
     }
 }
 
-const getInventoryByWarehouse = async(request, response) => {
-
-}
-
 const addProductToInventory = async(request, response) => {
     const userData = request.body
     try{
         const productExistInInventory = await inventoryModel.findOne({product: userData.productId, warehouse: userData.warehouseId})
         if(productExistInInventory){
-            return response.status(401).json({message: "Product Already exist in the warehouse"})
+            return response.status(409).json({message: "Product Already exist in the warehouse"})
         }
         
         const newInventoryEntry = new inventoryModel({

@@ -18,7 +18,28 @@ const getProductById = async(request, response) => {
         if(!productData){
             return response.status(404).json({message: "Product not found"})
         }
-        return response.status(200).send(productData)
+        // const availableInWarehouse = await inventoryModel.find({product: productId})
+        const availableInWarehouse = await inventoryModel.aggregate([
+            {
+                $match: {
+                    $expr: {
+                      $eq: ["$product", { $toObjectId: productId }]
+                    }
+                  }
+            },
+            {
+              $lookup: {
+                from: "warehouse",          
+                localField: "warehouse",        
+                foreignField: "_id",            
+                as: "warehouseDetails"             
+              }
+            },
+            {
+              $unwind: "$warehouseDetails"    
+            }
+          ]);
+        return response.status(200).send({productData: productData, availableIn: availableInWarehouse})
     }
     catch(error){
         return response.status(500).json({message: error.message})
@@ -26,7 +47,18 @@ const getProductById = async(request, response) => {
 }
 
 const getProductByWarehouse = async(request, response) => {
-    
+    const {warehouseId} = request.params
+    try{
+        const productData = await inventoryModel.find({warehouse: warehouseId})
+        console.log(productData)
+        if(productData.length === 0){
+            return response.status(404).json({message:"No data found for the provided Warehouse"})
+        }
+        return response.status(200).send(productData)
+    } 
+    catch(error){
+        return response.status(500).json({message: error.message})
+    }
 }
 
 const addProduct = async(request, response) => {
@@ -34,7 +66,7 @@ const addProduct = async(request, response) => {
     try{
         const existingProduct = await productModel.findOne({productName: userData.productName})
         if(existingProduct){
-            return response.status(401).send({message: "Product Already exist"})
+            return response.status(409).send({message: "Product Already exist"})
         }
         const addedProduct = await productModel.create(userData)
         // const productExistInInventory = await inventoryModel.findOne({product: addedProduct._id})

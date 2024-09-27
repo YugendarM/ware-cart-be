@@ -1,3 +1,4 @@
+const inventoryModel = require("../models/inventoryModel")
 const warehouseModel = require("../models/warehouseModel")
 
 const getAllWarehouse = async(request, response) => {
@@ -17,7 +18,30 @@ const getWarehouseById = async(request, response) => {
         if(!warehouseData){
             return response.status(404).json({message: "Warehouse not found"})
         }
-        return response.status(200).send(warehouseData)
+        const availableProducts = await inventoryModel.aggregate([
+            {
+                $match: {
+                    $expr: {
+                      $eq: ["$warehouse", { $toObjectId: warehouseId }]
+                    }
+                  }
+            },
+            {
+              $lookup: {
+                from: "product",          
+                localField: "product",        
+                foreignField: "_id",            
+                as: "productDetails"             
+              }
+            },
+            {
+              $unwind: "$productDetails"    
+            }
+          ]);
+          if (availableProducts.length === 0) {
+            return response.status(404).json({ message: 'No products found for this warehouse' });
+          }
+        return response.status(200).send({warehouseData: warehouseData, availableProducts: availableProducts})
     }
     catch(error){
         return response.status(500).json({message: error.message})
@@ -29,7 +53,7 @@ const addWarehouse = async(request, response) => {
     try{
         const existingWarehouse = await warehouseModel.findOne({warehouseName: userData.warehouseName})
         if(existingWarehouse){
-            return response.status(401).send({message: "Warehouse Already exist"})
+            return response.status(409).send({message: "Warehouse Already exist"})
         }
         const addedWarehouse = await warehouseModel.create(userData)
         return response.status(201).send({message: "Warehouse added successfully", addedWarehouse})
