@@ -6,6 +6,8 @@ const app = express()
 const PORT = process.env.PORT || 3500
 
 const warehouseRoute = require("./routes/warehouseRoute")
+const productRoute = require("./routes/productRoute")
+const inventoryRoute = require("./routes/inventoryRoute")
 
 app.use(express.json())
 app.use(express.urlencoded({extended: true}))
@@ -15,6 +17,8 @@ app.get("/api/v1", (request, response) => {
 })
 
 app.use("/api/v1/warehouse", warehouseRoute)
+app.use("/api/v1/product", productRoute)
+app.use("/api/v1/inventory", inventoryRoute)
 
 mongoose.connect(process.env.DB_URL)
 const db = mongoose.connection

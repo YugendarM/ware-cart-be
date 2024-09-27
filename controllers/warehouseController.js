@@ -27,8 +27,8 @@ const getWarehouseById = async(request, response) => {
 const addWarehouse = async(request, response) => {
     const userData = request.body
     try{
-        const isWarehouseExist = await warehouseModel.findOne({warehouseName: userData.warehouseName})
-        if(isWarehouseExist){
+        const existingWarehouse = await warehouseModel.findOne({warehouseName: userData.warehouseName})
+        if(existingWarehouse){
             return response.status(401).send({message: "Warehouse Already exist"})
         }
         const addedWarehouse = await warehouseModel.create(userData)
