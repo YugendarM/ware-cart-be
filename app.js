@@ -1,6 +1,7 @@
 require("dotenv").config()
 const express = require("express")
 const mongoose = require("mongoose")
+const cors = require("cors")
 const app = express()
 
 const PORT = process.env.PORT || 3500
@@ -9,6 +10,7 @@ const warehouseRoute = require("./routes/warehouseRoute")
 const productRoute = require("./routes/productRoute")
 const inventoryRoute = require("./routes/inventoryRoute")
 
+app.use(cors());
 app.use(express.json())
 app.use(express.urlencoded({extended: true}))
 

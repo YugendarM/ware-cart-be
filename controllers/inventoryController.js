@@ -28,7 +28,7 @@ const addProductToInventory = async(request, response) => {
     const userData = request.body
     try{
         const productExistInInventory = await inventoryModel.findOne({product: userData.productId, warehouse: userData.warehouseId})
-        if(productExistInInventory){
+        if(productExistInInventory !== null){
             return response.status(409).json({message: "Product Already exist in the warehouse"})
         }
         

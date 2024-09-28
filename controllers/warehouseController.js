@@ -3,7 +3,40 @@ const warehouseModel = require("../models/warehouseModel")
 
 const getAllWarehouse = async(request, response) => {
     try{
-        const warehouseData = await warehouseModel.find()
+        const warehouseData = await warehouseModel.aggregate([
+            {
+              // Stage 1: Perform a lookup to join with inventory collection
+              $lookup: {
+                from: 'inventory', // The name of the inventory collection
+                localField: '_id', // Field from the warehouse collection
+                foreignField: 'warehouse', // Field from the inventory collection
+                as: 'products', // Name for the array of joined products
+              },
+            },
+            {
+              // Stage 2: Add a new field isStock which counts the number of products
+              $addFields: {
+                inStock: {
+                  $sum: { $map: {
+                      input: '$products', // Array of products
+                      as: 'product',
+                      in: { $ifNull: ['$$product.stockLevel', 0] } // Get capacity, default to 0 if null
+                    }
+                  }
+                },
+              },
+            },
+            {
+              // Stage 3: Project the fields you want in the response
+              $project: {
+                _id: 1, // Include the warehouse ID
+                warehouseName: 1, // Include other fields you want from warehouse
+                inStock: 1, // Include the calculated isStock
+                capacity: 1,
+                location: 1
+              },
+            },
+          ]);
         return response.status(200).send(warehouseData)
     }
     catch(error){
@@ -38,10 +71,14 @@ const getWarehouseById = async(request, response) => {
               $unwind: "$productDetails"    
             }
           ]);
-          if (availableProducts.length === 0) {
-            return response.status(404).json({ message: 'No products found for this warehouse' });
-          }
-        return response.status(200).send({warehouseData: warehouseData, availableProducts: availableProducts})
+          // if (availableProducts.length === 0) {
+          //   return response.status(404).json({ message: 'No products found for this warehouse' });
+          // }
+          const inStock = availableProducts.reduce((total, product) => {
+              return total + (product.stockLevel || 0); // Sum stockLevel, defaulting to 0 if undefined
+          }, 0);
+
+        return response.status(200).send({warehouseData: warehouseData, availableProducts: availableProducts, inStock: inStock})
     }
     catch(error){
         return response.status(500).json({message: error.message})

@@ -18,7 +18,6 @@ const getProductById = async(request, response) => {
         if(!productData){
             return response.status(404).json({message: "Product not found"})
         }
-        // const availableInWarehouse = await inventoryModel.find({product: productId})
         const availableInWarehouse = await inventoryModel.aggregate([
             {
                 $match: {
