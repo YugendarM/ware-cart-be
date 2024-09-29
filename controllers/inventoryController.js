@@ -1,4 +1,5 @@
 const inventoryModel = require("../models/inventoryModel")
+const productModel = require("../models/productModel")
 
 const getAllInventory = async(request, response) => {
     try{
@@ -24,7 +25,7 @@ const getInventoryById = async(request, response) => {
     }
 }
 
-const addProductToInventory = async(request, response) => {
+const addProductToInventory = async(request, response, io) => {
     const userData = request.body
     try{
         const productExistInInventory = await inventoryModel.findOne({product: userData.productId, warehouse: userData.warehouseId})
@@ -39,7 +40,18 @@ const addProductToInventory = async(request, response) => {
             stockThreshold: userData.stockThreshold
         })
 
-        const addedProductInInventory = await newInventoryEntry.save()
+        const addedProductInInventory = await newInventoryEntry.save();
+
+        const productDetails = await productModel.findOne({ _id: addedProductInInventory.product })
+
+        const addedProductWithDetail = {
+            ...addedProductInInventory._doc,
+            productDetails: {
+                ...productDetails._doc
+            }
+        }
+
+        io.emit("inventoryAdded", addedProductWithDetail)
         return response.status(201).json({message: "Product added to the warehouse", addedProductInInventory})
     }
     catch(error){
@@ -47,7 +59,7 @@ const addProductToInventory = async(request, response) => {
     }
 }
 
-const updateInventory = async(request, response) => {
+const updateInventory = async(request, response, io) => {
     const {inventoryId} = request.params
     const inventoryData = request.body
     try{
@@ -60,6 +72,16 @@ const updateInventory = async(request, response) => {
             {...inventoryData},
             {new : true}
         )
+        const productDetails = await productModel.findOne({_id: updatedInventory.product})
+
+        const updatedInventoryWithDetail = {
+            ...updatedInventory._doc,
+            productDetails: {
+                ...productDetails._doc
+            }
+        }
+        io.emit("inventoryUpdated", updatedInventoryWithDetail)
+
         return response.status(200).json({message: "Inventory updated successfully", updatedInventory})
     } 
     catch(error){
@@ -67,14 +89,15 @@ const updateInventory = async(request, response) => {
     }
 }
 
-const deleteInventory  = async(request, response) => {
+const deleteInventory  = async(request, response, io) => {
     const { inventoryId } = request.params
     try{
         const deletedInventory = await inventoryModel.findByIdAndDelete(inventoryId);
         if (!deletedInventory) {
             return response.status(404).json({ message: 'Inventory not found' });
         }
-        response.status(200).json({ message: 'Inventory deleted successfully', deletedInventory });
+        io.emit("inventoryDeleted", deletedInventory)
+        return response.status(200).json({ message: 'Inventory deleted successfully', deletedInventory });
 
     }
     catch(error){

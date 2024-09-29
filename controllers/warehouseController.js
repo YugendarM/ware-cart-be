@@ -85,7 +85,7 @@ const getWarehouseById = async(request, response) => {
     }
 }
 
-const addWarehouse = async(request, response) => {
+const addWarehouse = async(request, response, io) => {
     const userData = request.body
     try{
         const existingWarehouse = await warehouseModel.findOne({warehouseName: userData.warehouseName})
@@ -93,6 +93,7 @@ const addWarehouse = async(request, response) => {
             return response.status(409).send({message: "Warehouse Already exist"})
         }
         const addedWarehouse = await warehouseModel.create(userData)
+        io.emit("newWarehouse", addedWarehouse)
         return response.status(201).send({message: "Warehouse added successfully", addedWarehouse})
     }
     catch(error){
@@ -100,14 +101,15 @@ const addWarehouse = async(request, response) => {
     }
 }
 
-const deleteWarehouse = async(request,response) => {
+const deleteWarehouse = async(request,response, io) => {
     const { warehouseId } = request.params
     try{
         const deletedWarehouse = await warehouseModel.findByIdAndDelete(warehouseId);
         if (!deletedWarehouse) {
             return response.status(404).json({ message: 'Warehouse not found' });
         }
-        response.status(200).json({ message: 'Warehouse deleted successfully', deletedWarehouse });
+        io.emit("warehouseDeleted", deletedWarehouse)
+        return response.status(200).json({ message: 'Warehouse deleted successfully', deletedWarehouse });
 
     }
     catch(error){
@@ -115,7 +117,7 @@ const deleteWarehouse = async(request,response) => {
     }
 }
 
-const updateWarehouse = async(request,response) => {
+const updateWarehouse = async(request,response, io) => {
     const {warehouseId} = request.params
     const warehouseData = request.body
     try{
@@ -127,6 +129,8 @@ const updateWarehouse = async(request,response) => {
             {_id: validWarehouse}, 
             {...warehouseData}, 
             {new: true})
+
+        io.emit("warehouseUpdated", updatedWarehouse)
         return response.status(200).json({message: "Warehouse updated Successfully", updatedWarehouse})
     }
     catch(error){

@@ -3,13 +3,20 @@ const { getAllWarehouse, addWarehouse, getWarehouseById, deleteWarehouse, update
 
 const route = express.Router()
 
-route.get("/", getAllWarehouse)
-route.get("/:warehouseId", getWarehouseById)
 
-route.post("/add", addWarehouse)
 
-route.delete("/delete/:warehouseId", deleteWarehouse)
+const attachSocketIO = (io) => {
+    route.post('/add', (request, response) => addWarehouse(request, response, io));
 
-route.put("/update/:warehouseId", updateWarehouse)
+    route.get("/", getAllWarehouse)
+    route.get("/:warehouseId", getWarehouseById)
 
-module.exports = route
+    route.delete("/delete/:warehouseId", (request, response) => deleteWarehouse(request, response, io))
+
+    route.put("/update/:warehouseId", (request, response) => updateWarehouse(request, response, io))
+
+    return route
+};
+
+
+module.exports = attachSocketIO

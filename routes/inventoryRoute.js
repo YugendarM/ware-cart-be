@@ -3,15 +3,21 @@ const { getAllInventory, updateInventory, getInventoryById, addProductToInventor
 
 const route = express.Router()
 
-route.get("/", getAllInventory)
-route.get("/:inventoryId", getInventoryById)
-
-route.post("/add", addProductToInventory)
-
-route.put("/update/:inventoryId", updateInventory)
-
-route.delete("/delete/:inventoryId", deleteInventory)
 
 
+const attachSocketIO = (io) => {
 
-module.exports = route
+    route.get("/", getAllInventory)
+    route.get("/:inventoryId", getInventoryById)
+
+    route.post("/add", (request, response) => addProductToInventory(request, response, io))
+
+    route.put("/update/:inventoryId", (request, response) => updateInventory(request, response, io))
+
+    route.delete("/delete/:inventoryId", (request, response) => deleteInventory(request, response, io))
+
+    return route
+}
+
+
+module.exports = attachSocketIO
