@@ -30,8 +30,9 @@ app.get("/api/v1", (request, response) => {
 
 const attachedWarehouseRoute = warehouseRoute(io)
 const attachedInventoryRoute = inventoryRoute(io)
+const attachedProductRoute = productRoute(io)
 app.use("/api/v1/warehouse", attachedWarehouseRoute)
-app.use("/api/v1/product", productRoute)
+app.use("/api/v1/product", attachedProductRoute)
 app.use("/api/v1/inventory", attachedInventoryRoute)
 
 io.on("connection", (socket) => {

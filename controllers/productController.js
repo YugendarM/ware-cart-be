@@ -49,7 +49,6 @@ const getProductByWarehouse = async(request, response) => {
     const {warehouseId} = request.params
     try{
         const productData = await inventoryModel.find({warehouse: warehouseId})
-        console.log(productData)
         if(productData.length === 0){
             return response.status(404).json({message:"No data found for the provided Warehouse"})
         }
@@ -60,7 +59,7 @@ const getProductByWarehouse = async(request, response) => {
     }
 }
 
-const addProduct = async(request, response) => {
+const addProduct = async(request, response, io) => {
     const userData = request.body
     try{
         const existingProduct = await productModel.findOne({productName: userData.productName})
@@ -68,19 +67,8 @@ const addProduct = async(request, response) => {
             return response.status(409).send({message: "Product Already exist"})
         }
         const addedProduct = await productModel.create(userData)
-        // const productExistInInventory = await inventoryModel.findOne({product: addedProduct._id})
-        // if(productExistInInventory){
 
-        // }
-        
-        // const newInventoryEntry = new inventoryModel({
-        //     product: addedProduct._id,
-        //     warehouse: userData.warehouseId,
-        //     stockLevel: userData.stockLevel,
-        //     stockThreshold: userData.stockThreshold
-        // })
-
-        // const addedProductInInventory = await newInventoryEntry.save()
+        io.emit("productAdded", addedProduct)
         return response.status(201).send({message: "Product added successfully", addedProduct})
     }
     catch(error){
@@ -88,14 +76,15 @@ const addProduct = async(request, response) => {
     }
 }
 
-const deleteProduct = async(request, response) => {
+const deleteProduct = async(request, response, io) => {
     const { productId } = request.params
     try{
         const deletedProduct = await productModel.findByIdAndDelete(productId);
         if (!deletedProduct) {
             return response.status(404).json({ message: 'Product not found' });
         }
-        response.status(200).json({ message: 'Product deleted successfully', deletedProduct });
+        io.emit("productDeleted", deletedProduct)
+        return response.status(200).json({ message: 'Product deleted successfully', deletedProduct });
 
     }
     catch(error){
@@ -103,7 +92,7 @@ const deleteProduct = async(request, response) => {
     }
 }
 
-const updateProduct = async(request, response) => {
+const updateProduct = async(request, response, io) => {
     const {productId} = request.params
     const productData = request.body
     try{
@@ -115,6 +104,8 @@ const updateProduct = async(request, response) => {
             {_id: validProduct}, 
             {...productData}, 
             {new: true})
+
+        io.emit("productUpdated", updatedProduct)
         return response.status(200).json({message: "Product updated Successfully", updatedProduct})
     }
     catch(error){
