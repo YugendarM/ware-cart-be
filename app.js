@@ -15,6 +15,7 @@ const PORT = process.env.PORT || 3500
 const warehouseRoute = require("./routes/warehouseRoute")
 const productRoute = require("./routes/productRoute")
 const inventoryRoute = require("./routes/inventoryRoute")
+const pricingRuleRoute = require("./routes/pricingRuleRoute")
 const userRoute = require("./routes/userRoute")
 
 app.use(cors({
@@ -32,10 +33,13 @@ app.get("/api/v1", (request, response) => {
 const attachedWarehouseRoute = warehouseRoute(io)
 const attachedInventoryRoute = inventoryRoute(io)
 const attachedProductRoute = productRoute(io)
+const attachedPricingRuleRoute = pricingRuleRoute(io)
+
 app.use("/api/v1/warehouse", attachedWarehouseRoute)
 app.use("/api/v1/product", attachedProductRoute)
 app.use("/api/v1/inventory", attachedInventoryRoute)
 app.use("/api/v1/user", userRoute)
+app.use("/api/v1/pricingRule", attachedPricingRuleRoute)
 
 io.on("connection", (socket) => {
     console.log("New client connected", socket.id)

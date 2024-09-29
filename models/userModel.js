@@ -32,6 +32,11 @@ const userSchema = new mongoose.Schema({
     pincode: {
         type: Number,
     },
+    customerType: {
+        type: String,
+        enum: ["Regular","VIP", "Gold", "Silver"],
+        default: "Regular"
+    },
     cart: {
         cartItems: [
             {
