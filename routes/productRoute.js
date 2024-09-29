@@ -1,18 +1,19 @@
 const express = require("express")
 const { getAllProducts, getProductById, addProduct, getProductByWarehouse, deleteProduct, updateProduct } = require("../controllers/productController")
+const {adminAuth} = require("../middlewares/adminAuth")
 
 const route = express.Router()
 
 const attachSocketIO = (io) => {
-    route.get("/", getAllProducts)
-    route.get("/:productId", getProductById)
-    route.get("/warehouse/:warehouseId", getProductByWarehouse)
+    route.get("/", adminAuth, getAllProducts)
+    route.get("/:productId", adminAuth, getProductById)
+    route.get("/warehouse/:warehouseId", adminAuth, getProductByWarehouse)
 
-    route.post("/add", (request, response) => addProduct(request, response, io))
+    route.post("/add", adminAuth, (request, response) => addProduct(request, response, io))
 
-    route.delete("/delete/:productId", (request, response) => deleteProduct(request, response, io))
+    route.delete("/delete/:productId", adminAuth, (request, response) => deleteProduct(request, response, io))
 
-    route.put("/update/:productId", (request, response) => updateProduct(request, response, io))
+    route.put("/update/:productId", adminAuth, (request, response) => updateProduct(request, response, io))
 
     return route
 }
