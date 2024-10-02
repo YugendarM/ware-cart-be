@@ -65,7 +65,6 @@ const loginUser = async(request, response) => {
 
 const logout = async (request, response) => {
     const authHeader = request.headers['cookie'];
-    console.log(authHeader)
     if (!authHeader) {
         return response.status(204).send({ status: "failed", code: 204, message: "Header not found" }); 
     }
@@ -106,7 +105,6 @@ const getUserDetails = async(request, response) => {
 const updateUserAddress = async(request, response, io) => {
     const userData = request.user
     const addressData = request.body
-    console.log(addressData)
     
     try{
         const validUser = await userModel.findOne({_id: userData._id})
@@ -121,8 +119,7 @@ const updateUserAddress = async(request, response, io) => {
         if(phoneNumberExist){
             return response.status(409).json({status: "conflict", code: 409, message: "Phone number already registered"})
         }
-        console.log("validUser")
-        console.log(validUser)
+
         const updatedUser = await userModel.findOneAndUpdate(
             {_id: validUser._id},
             {
@@ -138,8 +135,6 @@ const updateUserAddress = async(request, response, io) => {
             {new : true}
         )
         // io.emit("userUpdated", updatedUser)
-        console.log("here")
-        console.log(updatedUser)
         return response.status(200).json({status: "success", code: 200, message: "User updated successfully"})
     }
     catch(error){
@@ -162,7 +157,6 @@ const addProductToWishlist = async(request, response, io) => {
             {new: true}
         )
         const updatedWishlist = await productModel.find({ _id: { $in: updatedUser.wishlist } })
-        console.log(updatedUser)
         io.emit("wishlistUpdated", updatedWishlist)
         if(updatedUser){
             io.emit("productAddedToWishlist", updatedUser)
@@ -190,10 +184,61 @@ const removeProductFromWishlist = async(request, response, io) => {
         )
 
         const updatedWishlist = await productModel.find({ _id: { $in: updatedUser.wishlist } })
-        console.log(updatedUser)
         io.emit("wishlistUpdated", updatedWishlist)
         if(updatedUser){
-            return response.status(200).json({status: "success", code: 200, message: "Product added to wishlist"})
+            return response.status(200).json({status: "success", code: 200, message: "Product removed from wishlist"})
+        }
+    }
+    catch(error){
+        return response.status(500).json({status: "failure", code: 500, message: error.message})
+    }
+}
+
+const addProductToCart = async(request, response, io) => {
+    const user = request.user
+    const {productId} = request.params
+
+    try{
+        const validProduct = await productModel.findOne({_id: productId})
+        if(!validProduct){
+            return response.status(404).json({status:"Not found", code: 404, message: "Product not found"})
+        } 
+        const updatedUser = await userModel.findOneAndUpdate(
+            {_id: user._id}, 
+            { $addToSet: { cart: productId } },
+            {new: true}
+        )
+
+        const updatedCart = await productModel.find({ _id: { $in: updatedUser.cart } })
+        io.emit("cartUpdated", updatedCart)
+        if(updatedUser){
+            return response.status(200).json({status: "success", code: 200, message: "Product added to Cart"})
+        }
+    }
+    catch(error){
+        return response.status(500).json({status: "failure", code: 500, message: error.message})
+    }
+}
+
+const removeProductFromCart = async(request, response, io) => {
+    const user = request.user
+    const {productId} = request.params
+
+    try{
+        const validProduct = await productModel.findOne({_id: productId})
+        if(!validProduct){
+            return response.status(404).json({status:"Not found", code: 404, message: "Product not found"})
+        } 
+        const updatedUser = await userModel.findOneAndUpdate(
+            {_id: user._id}, 
+            { $pull: { cart: productId } },
+            {new: true}
+        )
+
+        const updatedCart = await productModel.find({ _id: { $in: updatedUser.cart } })
+        io.emit("cartUpdated", updatedCart)
+        if(updatedUser){
+            return response.status(200).json({status: "success", code: 200, message: "Product removed from cart"})
         }
     }
     catch(error){
@@ -216,5 +261,20 @@ const getAllWishlistedProducts = async(request, response) => {
     }
 }
 
+const getAllCartItems = async(request, response) => {
+    const user = request.user
+    try{
+        if(!user.cart || user.cart.length < 0){
+            return response.status(404).json({status: "not found", code: 404, message: "No products found in Cart"})
+        }
+        const cartItems = await productModel.find({_id: {$in : user.cart}})
 
-module.exports = {signupUser, loginUser, logout, getUserDetails, updateUserAddress, addProductToWishlist, removeProductFromWishlist, getAllWishlistedProducts}
+        return response.status(200).json({ status: "success", code: 200, data: cartItems })
+    }
+    catch(error){
+        response.status(500).json({status: "failure", code: 500, message: error.message})
+    }
+}
+
+
+module.exports = {signupUser, loginUser, logout, getUserDetails, updateUserAddress, addProductToWishlist, removeProductFromWishlist, getAllWishlistedProducts, addProductToCart, removeProductFromCart, getAllCartItems}

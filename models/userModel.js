@@ -48,33 +48,10 @@ const userSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "product"
     }],
-    cart: {
-        cartItems: [
-            {
-                productId: {
-                    type: mongoose.Schema.Types.ObjectId,
-                    ref: 'product'
-                },
-                quantity: {
-                    type: Number
-                },
-                price: {
-                    type: Number
-                },
-                totalPrice: {
-                    type: Number
-                },
-                addedOn: {
-                    type: Date,
-                    default: Date.now
-                }
-            }
-        ],
-        cartTotal: {
-            type: Number
-        },
-        
-    },
+    cart:[{ 
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "product"
+    }],
     role: {
         type: String,
         enum: ["user", "admin"],
