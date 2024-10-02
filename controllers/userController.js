@@ -22,7 +22,7 @@ const signupUser = async(request, response) => {
             const addedUser = await newUser.save()
             const AUTH_TOKEN = jwt.sign({id: addedUser._id}, JWT_TOKEN)
             const options = {
-                httpOnly: true,
+                httpOnly: false,
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: true,
                 maxAge: 2 * 60 * 60 * 1000 
@@ -45,7 +45,7 @@ const loginUser = async(request, response) => {
         if(await bcrypt.compare(userCredentials.password, validUser.password)){
             const AUTH_TOKEN = jwt.sign({id: validUser._id}, JWT_TOKEN)
             const options = {
-                httpOnly: true,
+                httpOnly: false,
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: true,
                 maxAge: 2 * 60 * 60 * 1000,
@@ -64,6 +64,7 @@ const loginUser = async(request, response) => {
 
 const logout = async (request, response) => {
     const authHeader = request.headers['cookie'];
+    console.log(authHeader)
     if (!authHeader) {
         return response.status(204).send({ status: "failed", code: 204, message: "Header not found" }); 
     }
@@ -91,5 +92,60 @@ const logout = async (request, response) => {
     return response.status(200).send({ status: "success", code: 200, message: "Logged out!" })
 };
 
+const getUserDetails = async(request, response) => {
+    const userData = request.user;
+    try{
+        return response.status(200).send(userData)
+    }
+    catch(error){
+        return response.status(500).send({message: error.message})
+    }
+}
 
-module.exports = {signupUser, loginUser, logout}
+const updateUserAddress = async(request, response, io) => {
+    const userData = request.user
+    const addressData = request.body
+    console.log(addressData)
+    
+    try{
+        const validUser = await userModel.findOne({_id: userData._id})
+        if(!validUser){
+            return response.status(404).json({status: "failure", code: 404, message: "User not found"})
+        }
+        const phoneNumberExist = await userModel.findOne({
+            phoneNo: addressData.phoneNo,
+            _id: { $ne: userData._id } // Exclude the current user
+        });
+
+        if(phoneNumberExist){
+            return response.status(409).json({status: "conflict", code: 409, message: "Phone number already registered"})
+        }
+        console.log("validUser")
+        console.log(validUser)
+        const updatedUser = await userModel.findOneAndUpdate(
+            {_id: validUser._id},
+            {
+                $set: {
+                    addressFirstLine: addressData.addressFirstLine,
+                    addressSecondLine: addressData.addressSecondLine,
+                    city: addressData.city,
+                    state: addressData.state,
+                    pincode: addressData.pincode,
+                    phoneNo: addressData.phoneNo,
+                }
+            },
+            {new : true}
+        )
+        // io.emit("userUpdated", updatedUser)
+        console.log("here")
+        console.log(updatedUser)
+        return response.status(200).json({status: "success", code: 200, message: "User updated successfully"})
+    }
+    catch(error){
+        console.error(error);
+        return response.status(500).json({status: "failure", code: 500, message: error.message})
+    }
+}
+
+
+module.exports = {signupUser, loginUser, logout, getUserDetails, updateUserAddress}

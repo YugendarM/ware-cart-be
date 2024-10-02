@@ -17,6 +17,7 @@ const productRoute = require("./routes/productRoute")
 const inventoryRoute = require("./routes/inventoryRoute")
 const pricingRuleRoute = require("./routes/pricingRuleRoute")
 const userRoute = require("./routes/userRoute")
+const orderRoute = require("./routes/orderRoute")
 
 app.use(cors({
     origin: FE_BASE_URL, 
@@ -40,6 +41,7 @@ app.use("/api/v1/product", attachedProductRoute)
 app.use("/api/v1/inventory", attachedInventoryRoute)
 app.use("/api/v1/user", userRoute)
 app.use("/api/v1/pricingRule", attachedPricingRuleRoute)
+app.use("/api/v1/order", orderRoute)
 
 io.on("connection", (socket) => {
     console.log("New client connected", socket.id)

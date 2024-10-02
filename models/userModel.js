@@ -23,11 +23,18 @@ const userSchema = new mongoose.Schema({
     },
     phoneNo: {
         type: String,
-        unique: true,
-        sparse: true
     },
     city: {
         type: String,
+    },
+    addressFirstLine: {
+        type: String
+    },
+    addressSecondLine: {
+        type: String
+    },
+    state: {
+        type: String
     },
     pincode: {
         type: Number,
@@ -37,6 +44,10 @@ const userSchema = new mongoose.Schema({
         enum: ["Regular","VIP", "Gold", "Silver"],
         default: "Regular"
     },
+    wishlist: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "product"
+    }],
     cart: {
         cartItems: [
             {

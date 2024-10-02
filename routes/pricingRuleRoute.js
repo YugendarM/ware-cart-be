@@ -5,7 +5,7 @@ const {adminAuth} = require("../middlewares/adminAuth")
 const route = express.Router()
 
 const attachSocketIO = (io) => {
-    route.get("/", adminAuth, getAllPricingRule)
+    route.get("/", getAllPricingRule)
 
     route.post("/add", adminAuth, (request, response) => addPricingRule(request, response, io))
 

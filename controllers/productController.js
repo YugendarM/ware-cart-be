@@ -113,4 +113,27 @@ const updateProduct = async(request, response, io) => {
     }
 }
 
-module.exports = {addProduct, getAllProducts, getProductById, getProductByWarehouse, deleteProduct, updateProduct}
+const getAllProductsForUsers = async(request, response) => {
+    try{
+        const productsData = await productModel.find()
+        return response.status(200).json({status: "success", code: 200, data: productsData})
+    }
+    catch(error){
+        return response.status(500).json({status: "failure", code: 500, message: error.message})
+    }
+} 
+
+const getProductByIdForUsers = async(request, response) => {
+    const {productId} = request.params
+    try{
+        const productData = await productModel.findOne({_id: productId})
+        if(!productData){
+            return response.status(404).json({status: "failure", code: 404, message: "Product not found"})
+        }
+        return response.status(200).json({status: "success", code:200, data: productData})
+    }
+    catch(error){
+        return response.status(500).json({status: "failure", code: 500, message: error.message})
+    }
+}
+module.exports = {addProduct, getAllProducts, getProductById, getProductByWarehouse, deleteProduct, updateProduct, getAllProductsForUsers, getProductByIdForUsers}

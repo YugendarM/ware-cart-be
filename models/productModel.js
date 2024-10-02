@@ -17,8 +17,15 @@ const productSchema = new mongoose.Schema({
     price: {
         type: Number,
         required: true
+    },
+    likes: {
+        type: Number,
+        default: 0
+    },
+    rating: {
+        type: Number,
+        default: 0
     }
-
 }, {
     collection: "product",
     timestamps: true

@@ -1,11 +1,13 @@
 const express = require("express")
-const { getAllProducts, getProductById, addProduct, getProductByWarehouse, deleteProduct, updateProduct } = require("../controllers/productController")
+const { getAllProducts, getProductById, addProduct, getProductByWarehouse, deleteProduct, updateProduct, getAllProductsForUsers, getProductByIdForUsers } = require("../controllers/productController")
 const {adminAuth} = require("../middlewares/adminAuth")
 
 const route = express.Router()
 
 const attachSocketIO = (io) => {
     route.get("/", adminAuth, getAllProducts)
+    route.get("/users", getAllProductsForUsers)
+    route.get("/users/:productId", getProductByIdForUsers)
     route.get("/:productId", adminAuth, getProductById)
     route.get("/warehouse/:warehouseId", adminAuth, getProductByWarehouse)
 
