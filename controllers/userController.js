@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs")
 const jwt = require("jsonwebtoken")
 const userModel = require("../models/userModel")
+const productModel = require("../models/productModel")
 const JWT_TOKEN = process.env.JWT_TOKEN
 
 const signupUser = async(request, response) => {
@@ -142,10 +143,78 @@ const updateUserAddress = async(request, response, io) => {
         return response.status(200).json({status: "success", code: 200, message: "User updated successfully"})
     }
     catch(error){
-        console.error(error);
+        return response.status(500).json({status: "failure", code: 500, message: error.message})
+    }
+}
+
+const addProductToWishlist = async(request, response, io) => {
+    const user = request.user
+    const {productId} = request.params
+
+    try{
+        const validProduct = await productModel.findOne({_id: productId})
+        if(!validProduct){
+            return response.status(404).json({status:"Not found", code: 404, message: "Product not found"})
+        } 
+        const updatedUser = await userModel.findOneAndUpdate(
+            {_id: user._id}, 
+            { $addToSet: { wishlist: productId } },
+            {new: true}
+        )
+        const updatedWishlist = await productModel.find({ _id: { $in: updatedUser.wishlist } })
+        console.log(updatedUser)
+        io.emit("wishlistUpdated", updatedWishlist)
+        if(updatedUser){
+            io.emit("productAddedToWishlist", updatedUser)
+            return response.status(200).json({status: "success", code: 200, message: "Product added to wishlist"})
+        }
+    }
+    catch(error){
+        return response.status(500).json({status: "failure", code: 500, message: error.message})
+    }
+}
+
+const removeProductFromWishlist = async(request, response, io) => {
+    const user = request.user
+    const {productId} = request.params
+
+    try{
+        const validProduct = await productModel.findOne({_id: productId})
+        if(!validProduct){
+            return response.status(404).json({status:"Not found", code: 404, message: "Product not found"})
+        } 
+        const updatedUser = await userModel.findOneAndUpdate(
+            {_id: user._id}, 
+            { $pull: { wishlist: productId } },
+            {new: true}
+        )
+
+        const updatedWishlist = await productModel.find({ _id: { $in: updatedUser.wishlist } })
+        console.log(updatedUser)
+        io.emit("wishlistUpdated", updatedWishlist)
+        if(updatedUser){
+            return response.status(200).json({status: "success", code: 200, message: "Product added to wishlist"})
+        }
+    }
+    catch(error){
+        return response.status(500).json({status: "failure", code: 500, message: error.message})
+    }
+}
+
+const getAllWishlistedProducts = async(request, response) => {
+    const user = request.user
+    try{
+        if(!user.wishlist || user.wishlist.length < 0){
+            return response.status(404).json({status: "not found", code: 404, message: "No products found in wishlist"})
+        }
+        const wishlistedProducts = await productModel.find({_id: {$in : user.wishlist}})
+
+        return response.status(200).json({ status: "success", code: 200, data: wishlistedProducts })
+    }
+    catch(error){
         return response.status(500).json({status: "failure", code: 500, message: error.message})
     }
 }
 
 
-module.exports = {signupUser, loginUser, logout, getUserDetails, updateUserAddress}
+module.exports = {signupUser, loginUser, logout, getUserDetails, updateUserAddress, addProductToWishlist, removeProductFromWishlist, getAllWishlistedProducts}

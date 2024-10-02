@@ -35,11 +35,12 @@ const attachedWarehouseRoute = warehouseRoute(io)
 const attachedInventoryRoute = inventoryRoute(io)
 const attachedProductRoute = productRoute(io)
 const attachedPricingRuleRoute = pricingRuleRoute(io)
+const attachedUserRoute = userRoute(io)
 
 app.use("/api/v1/warehouse", attachedWarehouseRoute)
 app.use("/api/v1/product", attachedProductRoute)
 app.use("/api/v1/inventory", attachedInventoryRoute)
-app.use("/api/v1/user", userRoute)
+app.use("/api/v1/user", attachedUserRoute)
 app.use("/api/v1/pricingRule", attachedPricingRuleRoute)
 app.use("/api/v1/order", orderRoute)
 
