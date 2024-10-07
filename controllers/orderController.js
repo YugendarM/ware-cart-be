@@ -33,12 +33,25 @@ const getPriceDetails = async(request, response) => {
 
 const getAllOrder = async (request, response) => {
     try {
-        const orderData = await orderModel.find().populate('products.product');
+        const orderData = await orderModel.find().populate('products.product').populate('user');
+        if(!orderData){
+            return response.status(404).json({status: "not found", code: 404, message: "Order not found"})
+        }
         return response.status(200).json({ status: "success", code: 200, data: orderData });
     } catch (error) {
         return response.status(500).send({status: "failure", code: 500, message: error.message});
     }
 };
+
+const getOrderById = async(request, response) => {
+    const {orderId} = request.params
+    try {
+        const orderData = await orderModel.findOne({_id : orderId}).populate('products.product').populate('user');
+        return response.status(200).json({ status: "success", code: 200, data: orderData });
+    } catch (error) {
+        return response.status(500).send({status: "failure", code: 500, message: error.message});
+    }
+}
 
 
 const addOrder = async(request, response, io) => {
@@ -84,4 +97,4 @@ const editOrder = async(request, response, io) => {
     }
 }
 
-module.exports = {getPriceDetails, addOrder, editOrder, getAllOrder}
+module.exports = {getPriceDetails, addOrder, editOrder, getAllOrder, getOrderById}
