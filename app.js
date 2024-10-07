@@ -37,13 +37,14 @@ const attachedInventoryRoute = inventoryRoute(io)
 const attachedProductRoute = productRoute(io)
 const attachedPricingRuleRoute = pricingRuleRoute(io)
 const attachedUserRoute = userRoute(io)
+const attachedOrderRoute = orderRoute(io)
 
 app.use("/api/v1/warehouse", attachedWarehouseRoute)
 app.use("/api/v1/product", attachedProductRoute)
 app.use("/api/v1/inventory", attachedInventoryRoute)
 app.use("/api/v1/user", attachedUserRoute)
 app.use("/api/v1/pricingRule", attachedPricingRuleRoute)
-app.use("/api/v1/order", orderRoute)
+app.use("/api/v1/order", attachedOrderRoute)
 app.use("/api/v1/payment", paymentRoute)
 
 io.on("connection", (socket) => {

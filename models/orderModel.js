@@ -22,10 +22,6 @@ const orderSchema = new mongoose.Schema({
             type: Number,               
             required: true
           },
-        //   discount: {
-        //     type: Number,              
-        //     default: 0
-        //   }
         }
       ],
       totalAmount: {
@@ -35,21 +31,27 @@ const orderSchema = new mongoose.Schema({
       discountedAmount: {
         type: Number, 
       },
+      platformFee : {
+        type: Number
+      },
+      payableAmount: {
+        type: Number
+      },
       paymentInfo: {
         paymentMethod: {
           type: String,
-          enum: ['Credit Card', 'PayPal', 'Stripe', 'Cash on Delivery'],
+          enum: ['gpay', 'phonepe', 'stripe', 'paypal', "cod"],
           required: true
         },
         paymentStatus: {
           type: String,
-          enum: ['Pending', 'Completed', 'Failed', 'Refunded'],
-          default: 'Pending'
+          enum: ['pending', 'completed', 'failed', 'refunded'],
+          default: 'pending'
         },
         transactionId: {
           type: String,
           required: function () {
-            return this.paymentStatus === 'Completed';  // Only required when payment is completed
+            return this.paymentStatus === 'completed';  // Only required when payment is completed
           }
         }
       },
@@ -76,7 +78,7 @@ const orderSchema = new mongoose.Schema({
         },
         country: {
           type: String,
-          required: true
+          // required: true
         },
         phoneNo: {
           type: String,
