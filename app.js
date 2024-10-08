@@ -19,6 +19,7 @@ const pricingRuleRoute = require("./routes/pricingRuleRoute")
 const userRoute = require("./routes/userRoute")
 const orderRoute = require("./routes/orderRoute")
 const paymentRoute = require("./routes/paymentRoute")
+const userActivityRoute = require("./routes/userActivityRoute")
 
 app.use(cors({
     origin: FE_BASE_URL, 
@@ -46,6 +47,7 @@ app.use("/api/v1/user", attachedUserRoute)
 app.use("/api/v1/pricingRule", attachedPricingRuleRoute)
 app.use("/api/v1/order", attachedOrderRoute)
 app.use("/api/v1/payment", paymentRoute)
+app.use("/api/v1/userActivity", userActivityRoute)
 
 io.on("connection", (socket) => {
     console.log("New client connected", socket.id)
