@@ -313,7 +313,7 @@ const getCategoryPurchaseCounts = async (req, res) => {
   
       const populatedProducts = await productModel.populate(topProducts, {
         path: "_id", 
-        select: "productName" 
+        select: "productName productDescription price" 
       }) 
   
       res.status(200).json(populatedProducts) 

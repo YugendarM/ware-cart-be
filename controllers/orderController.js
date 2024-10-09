@@ -53,6 +53,67 @@ const getOrderById = async(request, response) => {
     }
 }
 
+const getOrderByUserId = async (request, response) => {
+    try {
+        const user = request.user; // Get userId from the request parameters
+        console.log(user)
+
+        // Use the aggregation pipeline to query orders by userId
+        const orders = await orderModel.aggregate([
+            { 
+                $match: { user: user._id } // Match orders by the userId
+            },
+            {
+                $unwind: "$products" // Unwind the products array to process each product individually
+            },
+            {
+                $lookup: {
+                    from: 'product', // Assuming 'products' is the collection with product details
+                    localField: 'products.product', // The product ID in the products array (referenced as products.product)
+                    foreignField: '_id', // The product ID in the products collection (_id)
+                    as: 'productDetails' // Alias for the joined product details
+                }
+            },
+            {
+                $unwind: "$productDetails" // Unwind the productDetails array to access individual product details
+            },
+            {
+                $group: { // Regroup the orders with their respective products
+                    _id: "$_id",
+                    user: { $first: "$user" },
+                    totalAmount: { $first: "$totalAmount" },
+                    discountedAmount: { $first: "$discountedAmount" },
+                    platformFee: { $first: "$platformFee" },
+                    payableAmount: { $first: "$payableAmount" },
+                    paymentInfo: { $first: "$paymentInfo" },
+                    shippingInfo: { $first: "$shippingInfo" },
+                    orderStatus: { $first: "$orderStatus" },
+                    createdAt: { $first: "$createdAt" },
+                    updatedAt: { $first: "$updatedAt" },
+                    products: {
+                        $push: {
+                            productDetails: "$productDetails", // Push all the product details
+                            quantity: "$products.quantity", // Include the quantity of the product
+                            price: "$products.price" // Include the price of the product
+                        }
+                    }
+                }
+            },
+            { $sort: { createdAt: -1 } } // Optionally sort by creation date
+        ]);
+
+        if (orders.length === 0) {
+            return response.status(404).json({ message: 'No orders found for this user' });
+        }
+
+        // Send the aggregated orders in the response
+        return response.status(200).json(orders);
+    } catch (error) {
+        console.error('Error fetching orders:', error);
+        return response.status(500).json({ message: 'Server error', error });
+    }
+};
+
 
 const addOrder = async(request, response, io) => {
     const user = request.user
@@ -97,4 +158,4 @@ const editOrder = async(request, response, io) => {
     }
 }
 
-module.exports = {getPriceDetails, addOrder, editOrder, getAllOrder, getOrderById}
+module.exports = {getPriceDetails, addOrder, editOrder, getAllOrder, getOrderById, getOrderByUserId}

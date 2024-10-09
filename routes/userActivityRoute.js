@@ -13,7 +13,7 @@ router.get('/analytics/most-liked-product', adminAuth, getMostLikedProduct);
 router.get('/analytics/counts', adminAuth, getUserAndProductCount);
 router.get('/analytics/category-counts', adminAuth, getCategoryPurchaseCounts);
 router.get('/analytics/monthly-product-activity', adminAuth, getMonthlyProductActivity);
-router.get('/analytics/top-performing-products', adminAuth, getTopPerformingProducts);
+router.get('/analytics/top-performing-products', getTopPerformingProducts);
 router.get('/analytics/top-regions', adminAuth, getTopRegionsByProductPopularity);
 
   
