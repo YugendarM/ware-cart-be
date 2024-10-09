@@ -50,9 +50,9 @@ const orderSchema = new mongoose.Schema({
         },
         transactionId: {
           type: String,
-          required: function () {
-            return this.paymentStatus === 'completed';  // Only required when payment is completed
-          }
+          // required: function () {
+          //   return this.paymentStatus === 'completed';  // Only required when payment is completed
+          // }
         }
       },
       shippingInfo: {

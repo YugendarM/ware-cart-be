@@ -70,7 +70,7 @@ app.post("/api/orders", async (req, res) => {
           },
         ],
         mode: 'payment',
-        success_url: 'http://localhost:5173/orders',
+        success_url: `http://localhost:5173/checkout?paymentStatus=success&transactionId={CHECKOUT.session.id}`,
         cancel_url: 'http://localhost:5173/cart',
       })  
       res.send({url: session.url})
