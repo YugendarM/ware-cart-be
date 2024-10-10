@@ -25,7 +25,7 @@ const signupUser = async(request, response) => {
             const options = {
                 httpOnly: false,
                 secure: process.env.NODE_ENV === 'production',
-                sameSite: true,
+                sameSite: 'None',
                 maxAge: 2 * 60 * 60 * 1000 
             }
             response.cookie("SessionID", AUTH_TOKEN, options)
@@ -48,7 +48,7 @@ const loginUser = async(request, response) => {
             const options = {
                 httpOnly: false,
                 secure: process.env.NODE_ENV === 'production',
-                sameSite: true,
+                sameSite: 'None',
                 maxAge: 2 * 60 * 60 * 1000,
             }
             response.cookie("SessionID", AUTH_TOKEN, options)

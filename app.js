@@ -21,13 +21,11 @@ const orderRoute = require("./routes/orderRoute")
 const paymentRoute = require("./routes/paymentRoute")
 const userActivityRoute = require("./routes/userActivityRoute")
 
-// app.use(cors({
-//     origin: FE_BASE_URL, 
-//     methods: ['GET', 'POST', 'DELETE', 'PUT'], 
-//     credentials: true, 
-//   }));
-
-app.use(cors())
+app.use(cors({
+    origin: FE_BASE_URL, 
+    methods: ['GET', 'POST', 'DELETE', 'PUT'], 
+    credentials: true, 
+  }));
 app.use(express.json())
 app.use(express.urlencoded({extended: true}))
 
