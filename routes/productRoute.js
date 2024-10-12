@@ -1,8 +1,13 @@
 const express = require("express")
 const { getAllProducts, getProductById, addProduct, getProductByWarehouse, deleteProduct, updateProduct, getAllProductsForUsers, getProductByIdForUsers } = require("../controllers/productController")
 const {adminAuth} = require("../middlewares/adminAuth")
+const multer = require("multer")
+
 
 const route = express.Router()
+
+const storage = multer.memoryStorage()
+const upload = multer({ storage: storage })
 
 const attachSocketIO = (io) => {
     route.get("/", adminAuth, getAllProducts)
@@ -11,11 +16,11 @@ const attachSocketIO = (io) => {
     route.get("/:productId", adminAuth, getProductById)
     route.get("/warehouse/:warehouseId", adminAuth, getProductByWarehouse)
 
-    route.post("/add", adminAuth, (request, response) => addProduct(request, response, io))
+    route.post("/add", adminAuth, upload.array('images', 12), (request, response) => addProduct(request, response, io))
 
     route.delete("/delete/:productId", adminAuth, (request, response) => deleteProduct(request, response, io))
 
-    route.put("/update/:productId", adminAuth, (request, response) => updateProduct(request, response, io))
+    route.put("/update/:productId", adminAuth, upload.array('images', 12), (request, response) => updateProduct(request, response, io))
 
     return route
 }
