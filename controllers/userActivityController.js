@@ -3,6 +3,16 @@ const productModel = require("../models/productModel")
 const userActivityModel = require("../models/userActivityModel") 
 const userModel = require("../models/userModel") 
 const moment = require("moment")
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3") 
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner")
+
+const s3 = new S3Client({
+  credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+  },
+  region: process.env.AWS_BUCKET_REGION
+})
 
 const trackUserActivity = async (req, res) => {
     const { action, productId, additionalInfo } = req.body 
@@ -221,10 +231,10 @@ const getCategoryPurchaseCounts = async (req, res) => {
   const getMonthlyProductActivity = async (req, res) => {
     try {
       const endDate = new Date()  
-      const startDate = moment(endDate).subtract(6, 'months').startOf('month').toDate()  // Six months ago
+      const startDate = moment(endDate).subtract(6, 'months').startOf('month').toDate() 
   
       const months = [] 
-      for (let i = 0;  i < 6;  i++) {
+      for (let i = 0;   i < 6;   i++) {
         const monthDate = moment().subtract(i, 'months') 
         months.push({ 
           month: monthDate.month() + 1, 
@@ -289,38 +299,70 @@ const getCategoryPurchaseCounts = async (req, res) => {
     }
   } 
 
-  const getTopPerformingProducts = async (req, res) => {
-    try {
-      const topProducts = await userActivityModel.aggregate([
-        {
-          $match: {
-            action: { $in: ['purchase', 'add_to_cart', 'wishlist'] }
-          }
-        },
-        {
-          $group: {
-            _id: "$productId",
-            interactions: { $sum: 1 }
-          }
-        },
-        {
-          $sort: { interactions: -1 }
-        },
-        {
-          $limit: 5
+const getTopPerformingProducts = async (req, res) => {
+  try {
+    const topProducts = await userActivityModel.aggregate([
+      {
+        $match: {
+          action: { $in: ['purchase', 'add_to_cart', 'wishlist'] }
         }
-      ]) 
-  
-      const populatedProducts = await productModel.populate(topProducts, {
-        path: "_id", 
-        select: "productName productDescription price" 
-      }) 
-  
-      res.status(200).json(populatedProducts) 
-    } catch (error) {
-      res.status(500).send("Error fetching top performing products") 
-    }
-  } 
+      },
+      {
+        $group: {
+          _id: "$productId",
+          interactions: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { interactions: -1 }
+      },
+      {
+        $limit: 5
+      }
+    ]) 
+
+    const productIds = topProducts.map(p => p._id) 
+
+    const products = await productModel.find({ _id: { $in: productIds } })
+      .select("productName productDescription price images") 
+
+    const productsWithInteractions = topProducts.map(topProduct => {
+      const product = products.find(p => p._id.equals(topProduct._id)) 
+      if (product) {
+        return {
+          ...product.toObject(),  
+          interactions: topProduct.interactions,  
+        } 
+      }
+    }).filter(Boolean) 
+
+    const productsWithImageUrls = await Promise.all(productsWithInteractions.map(async (product) => {
+      const productWithUrls = { ...product }  
+      productWithUrls.imageUrls = [] 
+
+      if (product.images && product.images.length > 0) {
+        const imageUrls = await Promise.all(product.images.map(async (image) => {
+          const getObjectParams = {
+            Bucket: process.env.AWS_BUCKET_NAME,
+            Key: image
+          } 
+          const command = new GetObjectCommand(getObjectParams) 
+          const url = await getSignedUrl(s3, command, { expiresIn: 3600 }) 
+          return url 
+        })) 
+
+        productWithUrls.imageUrls = imageUrls  
+      }
+
+      return productWithUrls  
+    })) 
+
+    res.status(200).json(productsWithImageUrls) 
+  } catch (error) {
+    res.status(500).send("Error fetching top performing products") 
+  }
+} 
+
 
 
   const getTopRegionsByProductPopularity = async (req, res) => {

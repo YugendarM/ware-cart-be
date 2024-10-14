@@ -1,8 +1,18 @@
 const { response } = require("express")
 const orderModel = require("../models/orderModel")
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3") 
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner") 
 
 const PLATFORM_FEE = 10
 const DELIVERY_CHARGE = 0
+
+const s3 = new S3Client({
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+    },
+    region: process.env.AWS_BUCKET_REGION
+})
 
 const getPriceDetails = async(request, response) => {
     const orderItems = request.orderItems
@@ -33,52 +43,50 @@ const getPriceDetails = async(request, response) => {
 
 const getAllOrder = async (request, response) => {
     try {
-        const orderData = await orderModel.find().populate('products.product').populate('user');
+        const orderData = await orderModel.find().populate('products.product').populate('user')  
         if(!orderData){
             return response.status(404).json({status: "not found", code: 404, message: "Order not found"})
         }
-        return response.status(200).json({ status: "success", code: 200, data: orderData });
+        return response.status(200).json({ status: "success", code: 200, data: orderData })  
     } catch (error) {
-        return response.status(500).send({status: "failure", code: 500, message: error.message});
+        return response.status(500).send({status: "failure", code: 500, message: error.message})  
     }
-};
+}  
 
 const getOrderById = async(request, response) => {
     const {orderId} = request.params
     try {
-        const orderData = await orderModel.findOne({_id : orderId}).populate('products.product').populate('user');
-        return response.status(200).json({ status: "success", code: 200, data: orderData });
+        const orderData = await orderModel.findOne({_id : orderId}).populate('products.product').populate('user')  
+        return response.status(200).json({ status: "success", code: 200, data: orderData })  
     } catch (error) {
-        return response.status(500).send({status: "failure", code: 500, message: error.message});
+        return response.status(500).send({status: "failure", code: 500, message: error.message})  
     }
 }
 
 const getOrderByUserId = async (request, response) => {
     try {
-        const user = request.user; // Get userId from the request parameters
-        console.log(user)
+        const user = request.user  
 
-        // Use the aggregation pipeline to query orders by userId
         const orders = await orderModel.aggregate([
             { 
-                $match: { user: user._id } // Match orders by the userId
+                $match: { user: user._id } 
             },
             {
-                $unwind: "$products" // Unwind the products array to process each product individually
+                $unwind: "$products"
             },
             {
                 $lookup: {
-                    from: 'product', // Assuming 'products' is the collection with product details
-                    localField: 'products.product', // The product ID in the products array (referenced as products.product)
-                    foreignField: '_id', // The product ID in the products collection (_id)
-                    as: 'productDetails' // Alias for the joined product details
+                    from: 'product',
+                    localField: 'products.product',
+                    foreignField: '_id',
+                    as: 'productDetails'
                 }
             },
             {
-                $unwind: "$productDetails" // Unwind the productDetails array to access individual product details
+                $unwind: "$productDetails"
             },
             {
-                $group: { // Regroup the orders with their respective products
+                $group: {
                     _id: "$_id",
                     user: { $first: "$user" },
                     totalAmount: { $first: "$totalAmount" },
@@ -92,27 +100,57 @@ const getOrderByUserId = async (request, response) => {
                     updatedAt: { $first: "$updatedAt" },
                     products: {
                         $push: {
-                            productDetails: "$productDetails", // Push all the product details
-                            quantity: "$products.quantity", // Include the quantity of the product
-                            price: "$products.price" // Include the price of the product
+                            productDetails: "$productDetails",
+                            quantity: "$products.quantity",
+                            price: "$products.price"
                         }
                     }
                 }
             },
-            { $sort: { createdAt: -1 } } // Optionally sort by creation date
-        ]);
+            { $sort: { createdAt: -1 } }
+        ])  
 
         if (orders.length === 0) {
-            return response.status(404).json({ message: 'No orders found for this user' });
+            return response.status(404).json({ message: 'No orders found for this user' })  
         }
 
-        // Send the aggregated orders in the response
-        return response.status(200).json(orders);
+        const ordersWithImageUrls = await Promise.all(orders.map(async (order) => {
+            const productsWithImages = await Promise.all(order.products.map(async (product) => {
+                const productWithUrls = product.productDetails  
+                productWithUrls.imageUrls = []  
+
+                if (productWithUrls.images && productWithUrls.images.length > 0) {
+                    const imageUrls = await Promise.all(productWithUrls.images.map(async (image) => {
+                        const getObjectParams = {
+                            Bucket: process.env.AWS_BUCKET_NAME,
+                            Key: image
+                        }  
+                        const command = new GetObjectCommand(getObjectParams)  
+                        const url = await getSignedUrl(s3, command, { expiresIn: 3600 })  
+                        return url  
+                    }))  
+
+                    productWithUrls.imageUrls = imageUrls  
+                }
+
+                return {
+                    ...product,  
+                    productDetails: productWithUrls 
+                }  
+            }))  
+
+            return {
+                ...order,
+                products: productsWithImages
+            }  
+        }))  
+
+        return response.status(200).json(ordersWithImageUrls)  
     } catch (error) {
-        console.error('Error fetching orders:', error);
-        return response.status(500).json({ message: 'Server error', error });
+        console.error('Error fetching orders:', error)  
+        return response.status(500).json({ message: 'Server error', error })  
     }
-};
+}  
 
 
 const addOrder = async(request, response, io) => {

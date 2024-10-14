@@ -2,7 +2,17 @@ const bcrypt = require("bcryptjs")
 const jwt = require("jsonwebtoken")
 const userModel = require("../models/userModel")
 const productModel = require("../models/productModel")
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3") 
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner") 
 const JWT_TOKEN = process.env.JWT_TOKEN
+
+const s3 = new S3Client({
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+    },
+    region: process.env.AWS_BUCKET_REGION
+})
 
 const signupUser = async(request, response) => {
     const userData = request.body
@@ -64,12 +74,12 @@ const loginUser = async(request, response) => {
 }
 
 const logout = async (request, response) => {
-    const authHeader = request.headers['cookie'];
+    const authHeader = request.headers['cookie']  
     if (!authHeader) {
-        return response.status(204).send({ status: "failed", code: 204, message: "Header not found" }); 
+        return response.status(204).send({ status: "failed", code: 204, message: "Header not found" })   
     }
 
-    const cookies = authHeader.split(';').reduce((acc, cookie) => {
+    const cookies = authHeader.split('  ').reduce((acc, cookie) => {
         const [name, value] = cookie.trim().split('=')
         acc[name] = value
         return acc
@@ -90,10 +100,10 @@ const logout = async (request, response) => {
 
     response.setHeader('Clear-Site-Data', '"cookies"')
     return response.status(200).send({ status: "success", code: 200, message: "Logged out!" })
-};
+}  
 
 const getUserDetails = async(request, response) => {
-    const userData = request.user;
+    const userData = request.user  
     try{
         return response.status(200).send(userData)
     }
@@ -113,8 +123,8 @@ const updateUserAddress = async(request, response, io) => {
         }
         const phoneNumberExist = await userModel.findOne({
             phoneNo: addressData.phoneNo,
-            _id: { $ne: userData._id } // Exclude the current user
-        });
+            _id: { $ne: userData._id }
+        })  
 
         if(phoneNumberExist){
             return response.status(409).json({status: "conflict", code: 409, message: "Phone number already registered"})
@@ -246,35 +256,103 @@ const removeProductFromCart = async(request, response, io) => {
     }
 }
 
-const getAllWishlistedProducts = async(request, response) => {
-    const user = request.user
-    try{
-        if(!user.wishlist || user.wishlist.length < 0){
-            return response.status(404).json({status: "not found", code: 404, message: "No products found in wishlist"})
+const getAllWishlistedProducts = async (request, response) => {
+    const user = request.user  
+    
+    try {
+        if (!user.wishlist || user.wishlist.length === 0) {
+            return response.status(404).json({ 
+                status: "not found", 
+                code: 404, 
+                message: "No products found in wishlist" 
+            })  
         }
-        const wishlistedProducts = await productModel.find({_id: {$in : user.wishlist}})
 
-        return response.status(200).json({ status: "success", code: 200, data: wishlistedProducts })
-    }
-    catch(error){
-        return response.status(500).json({status: "failure", code: 500, message: error.message})
-    }
-}
+        const wishlistedProducts = await productModel.find({ _id: { $in: user.wishlist } })  
 
-const getAllCartItems = async(request, response) => {
-    const user = request.user
-    try{
-        if(!user.cart || user.cart.length < 0){
-            return response.status(404).json({status: "not found", code: 404, message: "No products found in Cart"})
+        const productsWithImageUrls = await Promise.all(wishlistedProducts.map(async (product) => {
+            const productWithUrls = product.toObject()  
+            productWithUrls.imageUrls = []  
+
+            if (productWithUrls.images && productWithUrls.images.length > 0) {
+                const imageUrls = await Promise.all(productWithUrls.images.map(async (image) => {
+                    const getObjectParams = {
+                        Bucket: process.env.AWS_BUCKET_NAME,
+                        Key: image
+                    }  
+                    const command = new GetObjectCommand(getObjectParams)  
+                    const url = await getSignedUrl(s3, command, { expiresIn: 3600 })  
+                    return url  
+                }))  
+
+                productWithUrls.imageUrls = imageUrls   
+            }
+
+            return productWithUrls
+        }))  
+
+        return response.status(200).json({
+            status: "success",
+            code: 200,
+            data: productsWithImageUrls
+        })  
+    } catch (error) {
+        return response.status(500).json({
+            status: "failure",
+            code: 500,
+            message: error.message
+        })  
+    }
+}  
+
+const getAllCartItems = async (request, response) => {
+    const user = request.user  
+
+    try {
+        if (!user.cart || user.cart.length === 0) {
+            return response.status(404).json({ 
+                status: "not found", 
+                code: 404, 
+                message: "No products found in Cart" 
+            })  
         }
-        const cartItems = await productModel.find({_id: {$in : user.cart}})
 
-        return response.status(200).json({ status: "success", code: 200, data: cartItems })
+        const cartItems = await productModel.find({ _id: { $in: user.cart } })  
+
+        const cartItemsWithImageUrls = await Promise.all(cartItems.map(async (product) => {
+            const productWithUrls = product.toObject()   
+            productWithUrls.imageUrls = []  
+
+            if (productWithUrls.images && productWithUrls.images.length > 0) {
+                const imageUrls = await Promise.all(productWithUrls.images.map(async (image) => {
+                    const getObjectParams = {
+                        Bucket: process.env.AWS_BUCKET_NAME,
+                        Key: image
+                    }  
+                    const command = new GetObjectCommand(getObjectParams)  
+                    const url = await getSignedUrl(s3, command, { expiresIn: 3600 })  
+                    return url  
+                }))  
+
+                productWithUrls.imageUrls = imageUrls  
+            }
+
+            return productWithUrls  
+        }))  
+
+        return response.status(200).json({
+            status: "success",
+            code: 200,
+            data: cartItemsWithImageUrls
+        })  
+    } catch (error) {
+        return response.status(500).json({
+            status: "failure",
+            code: 500,
+            message: error.message
+        })  
     }
-    catch(error){
-        response.status(500).json({status: "failure", code: 500, message: error.message})
-    }
-}
+}  
 
 
 module.exports = {signupUser, loginUser, logout, getUserDetails, updateUserAddress, addProductToWishlist, removeProductFromWishlist, getAllWishlistedProducts, addProductToCart, removeProductFromCart, getAllCartItems}
