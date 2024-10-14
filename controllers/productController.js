@@ -5,6 +5,7 @@ const crypto = require("crypto")
 
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3") 
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner") 
+const { response } = require("express")
 
 const s3 = new S3Client({
     credentials: {
@@ -370,5 +371,46 @@ const getProductByIdForUsers = async (request, response) => {
     }
 } 
 
+const addReview = async(request, response, io) => {
+    const { rating, comment} = request.body;
+    const user = request.user
 
-module.exports = {addProduct, getAllProducts, getProductById, getProductByWarehouse, deleteProduct, updateProduct, getAllProductsForUsers, getProductByIdForUsers}
+    try {
+        // Find the product
+        const product = await productModel.findById(request.params.productId);
+    
+        if (!product) {
+          return response.status(404).json({ message: 'Product not found' });
+        }
+    
+        // Check if the user has already reviewed the product
+        const alreadyReviewed = product.reviews.find((review) => review.user.toString() === user._id.toString());
+    
+        if (alreadyReviewed) {
+          return response.status(400).json({ message: 'Product already reviewed' });
+        }
+    
+        // Create new review
+        const review = {
+          user,
+          rating,
+          comment
+        };
+    
+        // Push review to product's reviews array
+        product.reviews.push(review);
+    
+        // Update average rating and number of reviews
+        product.numberOfReviews = product.reviews.length;
+        product.rating = product.reviews.reduce((acc, item) => item.rating + acc, 0) / product.numberOfReviews;
+    
+        await product.save();
+        
+        response.status(201).json(product);
+      } catch (error) {
+        response.status(500).json({ message: 'Server error' });
+      }
+}
+
+
+module.exports = {addProduct, getAllProducts, getProductById, getProductByWarehouse, deleteProduct, updateProduct, getAllProductsForUsers, getProductByIdForUsers, addReview}
