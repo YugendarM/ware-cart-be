@@ -2,6 +2,7 @@ const express = require("express")
 const { getAllProducts, getProductById, addProduct, getProductByWarehouse, deleteProduct, updateProduct, getAllProductsForUsers, getProductByIdForUsers, addReview } = require("../controllers/productController")
 const {adminAuth} = require("../middlewares/adminAuth")
 const {authenticate} = require("../middlewares/authenticate")
+const {authenticateOptional} = require("../middlewares/authenticateOptional")
 const multer = require("multer")
 
 
@@ -12,8 +13,8 @@ const upload = multer({ storage: storage })
 
 const attachSocketIO = (io) => {
     route.get("/", adminAuth, getAllProducts)
-    route.get("/users", getAllProductsForUsers)
-    route.get("/users/:productId", getProductByIdForUsers)
+    route.get("/users", authenticateOptional, getAllProductsForUsers)
+    route.get("/users/:productId", authenticateOptional, getProductByIdForUsers)
     route.get("/:productId", adminAuth, getProductById)
     route.get("/warehouse/:warehouseId", adminAuth, getProductByWarehouse)
 

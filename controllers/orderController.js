@@ -1,5 +1,6 @@
 const { response } = require("express")
 const orderModel = require("../models/orderModel")
+const inventoryModel = require("../models/inventoryModel")
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3") 
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner") 
 
@@ -153,10 +154,12 @@ const getOrderByUserId = async (request, response) => {
 }  
 
 
-const addOrder = async(request, response, io) => {
-    const user = request.user
-    const orderData = request.body
-    try{        
+
+const addOrder = async (request, response, io) => {
+    const user = request.user;
+    const orderData = request.body;
+
+    try {
         const newOrder = new orderModel({
             user: user._id,
             products: orderData.products,
@@ -172,19 +175,38 @@ const addOrder = async(request, response, io) => {
                 city: user.city,
                 country: user.country,
                 pincode: user.pincode,
-                country: user.country,
                 phoneNo: user.phoneNo,
-            }
-        })
+            },
+            deliveryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        });
 
-        const addedOrder = await newOrder.save()
-        io.emit("orderAdded", addedOrder)
-        return response.status(201).send({status: "success", code: 201, message: "Order added successfully"})
+        const addedOrder = await newOrder.save();
+
+        for (const product of orderData.products) {
+
+            const inventories = await inventoryModel.find({ product: product.product }).populate('warehouse');
+
+            const matchingInventory = inventories.find(inventory => {
+
+                return inventory.warehouse.location.city.toLowerCase() === user.city.toLowerCase(); 
+            });
+
+            if (matchingInventory) {
+                matchingInventory.reservedStock += product.quantity; 
+                await matchingInventory.save();
+            } else {
+                return response.status(500).send({status: "failure", code: 500, message: "Cannot place order for user's location"})
+            }
+        }
+
+        io.emit("orderAdded", addedOrder);
+        return response.status(201).send({ status: "success", code: 201, message: "Order added successfully" });
+    } catch (error) {
+        console.error("Error in adding order:", error);
+        return response.status(500).send({ status: "failure", code: 500, message: error.message });
     }
-    catch(error){
-        return response.status(500).send({status: "failure", code: 500, message: error.message})
-    }
-}
+};
+
 
 const editOrder = async(request, response, io) => {
     const orderData = request.body

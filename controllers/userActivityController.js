@@ -17,10 +17,10 @@ const s3 = new S3Client({
 const trackUserActivity = async (req, res) => {
     const { action, productId, additionalInfo } = req.body 
   
-    const userId = req?.params?.userId || (req.user ? req.user._id : null) 
+    const user = req.user || null 
     
     const activity = new userActivityModel({
-      userId,
+      userId : user?._id || null,
       action,
       productId,
       additionalInfo,

@@ -1,6 +1,8 @@
 require("dotenv").config()
 const productModel = require("../models/productModel")
 const inventoryModel = require("../models/inventoryModel")
+const warehouseModel = require("../models/warehouseModel")
+const userModel = require("../models/userModel")
 const crypto = require("crypto")
 
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3") 
@@ -19,7 +21,7 @@ const s3 = new S3Client({
 
 const getAllProducts = async (request, response) => {
     try {
-        const productsData = await productModel.find() //
+        const productsData = await productModel.find() 
 
         const productsWithImageUrls = await Promise.all(productsData.map(async (product) => {
             const productWithUrls = product.toObject() 
@@ -201,11 +203,11 @@ const deleteProduct = async(request, response, io) => {
             for (const image of validProduct.images) {
                 const params = {
                     Bucket: process.env.AWS_BUCKET_NAME,
-                    Key: image, // The image filename stored in S3
+                    Key: image, 
                 };
                 const command = new DeleteObjectCommand(params);
                 try {
-                    await s3.send(command); // Await each S3 delete request
+                    await s3.send(command); 
                 } 
                 catch (s3Error) {
                     return response.status(500).send({message: s3Error})
@@ -228,179 +230,257 @@ const deleteProduct = async(request, response, io) => {
 }
 
 const updateProduct = async (request, response, io) => {
-    const { productId } = request.params 
-    const productData = request.body 
-    const files = request.files  
-
+    const { productId } = request.params;
+    const productData = request.body;
+    const files = request.files; 
+  
     try {
-      const validProduct = await productModel.findOne({ _id: productId }) 
+      const validProduct = await productModel.findOne({ _id: productId });
   
       if (!validProduct) {
-        return response.status(404).json({ message: "Product Not found" }) 
+        return response.status(404).json({ message: "Product not found" });
       }
   
       const existingImages = Array.isArray(productData.existingImages)
         ? productData.existingImages
-        : [] 
+        : validProduct.images || []; 
   
-      const randomImageName = (bytes = 32) => crypto.randomBytes(bytes).toString("hex") 
+      const randomImageName = (bytes = 32) => crypto.randomBytes(bytes).toString("hex");
   
-      const s3UploadPromises = files?.map(async (file) => {
-        const imageName = randomImageName() 
-        const params = {
-          Bucket: process.env.AWS_BUCKET_NAME,
-          Key: imageName,
-          Body: file.buffer,
-          ContentType: file.mimetype,
-        } 
+      let updatedImages = [...existingImages]; 
   
-        const command = new PutObjectCommand(params) 
-        const s3Upload = await s3.send(command) 
+      if (files && files.length > 0) {
+        const s3UploadPromises = files.map(async (file) => {
+          const imageName = randomImageName();
+          const params = {
+            Bucket: process.env.AWS_BUCKET_NAME,
+            Key: imageName,
+            Body: file.buffer,
+            ContentType: file.mimetype,
+          };
   
-        return {
-          filename: imageName,
-          s3Response: s3Upload,
-        } 
-      }) 
+          const command = new PutObjectCommand(params);
+          const s3Upload = await s3.send(command);
   
-      const uploadResults = await Promise.all(s3UploadPromises) 
+          return {
+            filename: imageName,
+            s3Response: s3Upload,
+          };
+        });
   
-      const updatedImages = [
-        ...existingImages, 
-        ...uploadResults.map((file) => file.filename), 
-      ] 
+        const uploadResults = await Promise.all(s3UploadPromises);
+  
+        updatedImages = [
+          ...existingImages,
+          ...uploadResults.map((file) => file.filename),
+        ];
+      }
   
       const updatedProduct = await productModel.findOneAndUpdate(
         { _id: validProduct._id },
         {
-          ...productData, 
-          images: updatedImages,
+          ...productData,
+          ...(files && files.length > 0 ? { images: updatedImages } : {}),
         },
-        { new: true } 
-      ) 
-
-      const productObject = updatedProduct.toObject() 
-
+        { new: true }
+      );
+  
+      const productObject = updatedProduct.toObject();
+  
       if (updatedProduct.images && updatedProduct.images.length > 0) {
-          const imageUrls = await Promise.all(updatedProduct.images.map(async (image) => {
-              const getObjectParams = {
-                  Bucket: process.env.AWS_BUCKET_NAME,
-                  Key: image
-              } 
-              const command = new GetObjectCommand(getObjectParams) 
-              
-              const url = await getSignedUrl(s3, command, { expiresIn: 3600 }) 
-              return url 
-          })) 
-
-          productObject.imageUrls = imageUrls 
+        const imageUrls = await Promise.all(
+          updatedProduct.images.map(async (image) => {
+            const getObjectParams = {
+              Bucket: process.env.AWS_BUCKET_NAME,
+              Key: image,
+            };
+            const command = new GetObjectCommand(getObjectParams);
+  
+            const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
+            return url;
+          })
+        );
+  
+        productObject.imageUrls = imageUrls;
       }
   
-      io.emit("productUpdated", productObject) 
+      io.emit("productUpdated", productObject);
       return response
         .status(200)
-        .json({ message: "Product updated successfully", updatedProduct }) 
+        .json({ message: "Product updated successfully", updatedProduct });
     } catch (error) {
-      return response.status(500).json({ message: error.message }) 
+      return response.status(500).json({ message: error.message });
     }
-  } 
+  };
+
+const getAllProductsForUsers = async (request, response) => {
+    try {
+      const user = request.user; 
+  
+      const productsData = await productModel.find();
+  
+      const inventoryData = await inventoryModel.find().populate('warehouse');
+  
+      const productsWithImageUrls = await Promise.all(
+        productsData.map(async (product) => {
+          const productWithUrls = product.toObject();
+          productWithUrls.imageUrls = [];
+          productWithUrls.outOfStock = true; 
+          productWithUrls.deliverable = true; 
+  
+          const productInInventory = inventoryData.some(
+            (inventory) =>
+                 inventory?.product?.equals(product._id) && inventory.stockLevel > 0
+          );
+  
+          if (productInInventory) {
+            productWithUrls.outOfStock = false;
+          }
+  
+          if (user && user.city) {
+            const deliverableInventory = inventoryData.some(
+              (inventory) =>
+                inventory.product.equals(product._id) &&
+                inventory.warehouse.location.city.toLowerCase() === user.city.toLowerCase() &&
+                inventory.stockLevel > 0
+            );
+  
+            if (!deliverableInventory) {
+              productWithUrls.deliverable = false;
+            }
+          }
   
 
-const getAllProductsForUsers = async(request, response) => {
-    try {
-        const productsData = await productModel.find() 
-
-        const productsWithImageUrls = await Promise.all(productsData.map(async (product) => {
-            const productWithUrls = product.toObject() 
-            productWithUrls.imageUrls = [] 
-
-            if (product.images && product.images.length > 0) {
-                
-                const imageUrls = await Promise.all(product.images.map(async (image) => {
-                    const getObjectParams = {
-                        Bucket: process.env.AWS_BUCKET_NAME,
-                        Key: image
-                    } 
-                    const command = new GetObjectCommand(getObjectParams) 
-
-                    const url = await getSignedUrl(s3, command, { expiresIn: 3600 }) 
-                    return url 
-                })) 
-
-                productWithUrls.imageUrls = imageUrls 
-            }
-
-            return productWithUrls  
-        })) 
-
-        return response.status(200).send({status: "success", code: 200, data: productsWithImageUrls}) 
+          if (product.images && product.images.length > 0) {
+            const imageUrls = await Promise.all(
+              product.images.map(async (image) => {
+                const getObjectParams = {
+                  Bucket: process.env.AWS_BUCKET_NAME,
+                  Key: image,
+                };
+                const command = new GetObjectCommand(getObjectParams);
+                const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
+                return url;
+              })
+            );
+  
+            productWithUrls.imageUrls = imageUrls;
+          }
+  
+          return productWithUrls;
+        })
+      );
+  
+      return response.status(200).send({
+        status: "success",
+        code: 200,
+        data: productsWithImageUrls,
+      });
     } catch (error) {
-        return response.status(500).json({status: "success", code: 200, message: error.message}) 
+      return response
+        .status(500)
+        .json({ status: "error", code: 500, message: error.message });
     }
-} 
+  };
 
 const getProductByIdForUsers = async (request, response) => {
-    const { productId } = request.params 
+    const { productId } = request.params;
+  
     try {
-        const productData = await productModel.findOne({ _id: productId }) 
+      const productData = await productModel.findOne({ _id: productId });
+  
+      if (!productData) {
+        return response.status(404).json({
+          status: "failure",
+          code: 404,
+          message: "Product not found",
+        });
+      }
+  
+      const productObject = productData.toObject();
+      productObject.imageUrls = [];
+      productObject.outOfStock = true; 
+      productObject.deliverable = true; 
+  
+      const inventoryData = await inventoryModel.find({
+        product: productId,
+      }).populate('warehouse');
+  
+      const productInInventory = inventoryData.some(
+        (inventory) => inventory.stockLevel > 0
+      );
+  
+      if (productInInventory) {
+        productObject.outOfStock = false;
+      }
+  
+      const user = request.user; 
 
-        if (!productData) {
-            return response.status(404).json({ status: "failure", code: 404, message: "Product not found" }) 
+      if (user && user.city) {
+        const deliverableInventory = inventoryData.some(
+          (inventory) =>
+            inventory.warehouse.location.city.toLowerCase() === user.city.toLowerCase() &&
+            inventory.stockLevel > 0
+        );
+  
+        if (!deliverableInventory) {
+          productObject.deliverable = false;
         }
-
-        const productObject = productData.toObject() 
-
-        if (productData.images && productData.images.length > 0) {
-            const imageUrls = await Promise.all(productData.images.map(async (image) => {
-                const getObjectParams = {
-                    Bucket: process.env.AWS_BUCKET_NAME,
-                    Key: image
-                } 
-                const command = new GetObjectCommand(getObjectParams) 
-                
-                const url = await getSignedUrl(s3, command, { expiresIn: 3600 }) 
-                return url 
-            })) 
-
-            productObject.imageUrls = imageUrls 
-        }
-
-        return response.status(200).json({ status: "success", code: 200, data: productObject }) 
+      }
+  
+      if (productData.images && productData.images.length > 0) {
+        const imageUrls = await Promise.all(
+          productData.images.map(async (image) => {
+            const getObjectParams = {
+              Bucket: process.env.AWS_BUCKET_NAME,
+              Key: image,
+            };
+            const command = new GetObjectCommand(getObjectParams);
+  
+            const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
+            return url;
+          })
+        );
+  
+        productObject.imageUrls = imageUrls;
+      }
+  
+      return response
+        .status(200)
+        .json({ status: "success", code: 200, data: productObject });
     } catch (error) {
-        return response.status(500).json({ status: "failure", code: 500, message: error.message }) 
+      return response
+        .status(500)
+        .json({ status: "failure", code: 500, message: error.message });
     }
-} 
+  };
+  
 
 const addReview = async(request, response, io) => {
     const { rating, comment} = request.body;
     const user = request.user
 
     try {
-        // Find the product
         const product = await productModel.findById(request.params.productId);
     
         if (!product) {
           return response.status(404).json({ message: 'Product not found' });
         }
     
-        // Check if the user has already reviewed the product
         const alreadyReviewed = product.reviews.find((review) => review.user.toString() === user._id.toString());
     
         if (alreadyReviewed) {
           return response.status(400).json({ message: 'Product already reviewed' });
         }
     
-        // Create new review
         const review = {
           user,
           rating,
           comment
         };
     
-        // Push review to product's reviews array
         product.reviews.push(review);
     
-        // Update average rating and number of reviews
         product.numberOfReviews = product.reviews.length;
         product.rating = product.reviews.reduce((acc, item) => item.rating + acc, 0) / product.numberOfReviews;
     

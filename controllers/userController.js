@@ -2,6 +2,7 @@ const bcrypt = require("bcryptjs")
 const jwt = require("jsonwebtoken")
 const userModel = require("../models/userModel")
 const productModel = require("../models/productModel")
+const inventoryModel = require("../models/inventoryModel")
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3") 
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner") 
 const JWT_TOKEN = process.env.JWT_TOKEN
@@ -144,7 +145,7 @@ const updateUserAddress = async(request, response, io) => {
             },
             {new : true}
         )
-        // io.emit("userUpdated", updatedUser)
+        io.emit("userUpdated", updatedUser)
         return response.status(200).json({status: "success", code: 200, message: "User updated successfully"})
     }
     catch(error){
@@ -193,8 +194,30 @@ const removeProductFromWishlist = async(request, response, io) => {
             {new: true}
         )
 
-        const updatedWishlist = await productModel.find({ _id: { $in: updatedUser.wishlist } })
-        io.emit("wishlistUpdated", updatedWishlist)
+        const wishlistedProducts = await productModel.find({ _id: { $in: updatedUser.wishlist } })
+
+        const productsWithImageUrls = await Promise.all(wishlistedProducts.map(async (product) => {
+            const productWithUrls = product.toObject()  
+            productWithUrls.imageUrls = []  
+
+            if (productWithUrls.images && productWithUrls.images.length > 0) {
+                const imageUrls = await Promise.all(productWithUrls.images.map(async (image) => {
+                    const getObjectParams = {
+                        Bucket: process.env.AWS_BUCKET_NAME,
+                        Key: image
+                    }  
+                    const command = new GetObjectCommand(getObjectParams)  
+                    const url = await getSignedUrl(s3, command, { expiresIn: 3600 })  
+                    return url  
+                }))  
+
+                productWithUrls.imageUrls = imageUrls   
+            }
+
+            return productWithUrls
+        }))
+        
+        io.emit("wishlistUpdated", productsWithImageUrls)
         if(updatedUser){
             return response.status(200).json({status: "success", code: 200, message: "Product removed from wishlist"})
         }
@@ -245,8 +268,30 @@ const removeProductFromCart = async(request, response, io) => {
             {new: true}
         )
 
-        const updatedCart = await productModel.find({ _id: { $in: updatedUser.cart } })
-        io.emit("cartUpdated", updatedCart)
+        const cartItems = await productModel.find({ _id: { $in: updatedUser.cart } })
+
+        const cartItemsWithImageUrls = await Promise.all(cartItems.map(async (product) => {
+            const productWithUrls = product.toObject()   
+            productWithUrls.imageUrls = []  
+
+            if (productWithUrls.images && productWithUrls.images.length > 0) {
+                const imageUrls = await Promise.all(productWithUrls.images.map(async (image) => {
+                    const getObjectParams = {
+                        Bucket: process.env.AWS_BUCKET_NAME,
+                        Key: image
+                    }  
+                    const command = new GetObjectCommand(getObjectParams)  
+                    const url = await getSignedUrl(s3, command, { expiresIn: 3600 })  
+                    return url  
+                }))  
+
+                productWithUrls.imageUrls = imageUrls  
+            }
+
+            return productWithUrls  
+        }))
+
+        io.emit("cartUpdated", cartItemsWithImageUrls)
         if(updatedUser){
             return response.status(200).json({status: "success", code: 200, message: "Product removed from cart"})
         }
@@ -269,10 +314,35 @@ const getAllWishlistedProducts = async (request, response) => {
         }
 
         const wishlistedProducts = await productModel.find({ _id: { $in: user.wishlist } })  
+        const inventoryData = await inventoryModel.find().populate('warehouse');
 
         const productsWithImageUrls = await Promise.all(wishlistedProducts.map(async (product) => {
             const productWithUrls = product.toObject()  
             productWithUrls.imageUrls = []  
+            productWithUrls.outOfStock = true; 
+          productWithUrls.deliverable = true;
+  
+          const productInInventory = inventoryData.some(
+            (inventory) =>
+                 inventory?.product?.equals(product._id) && inventory.stockLevel > 0
+          );
+  
+          if (productInInventory) {
+            productWithUrls.outOfStock = false;
+          }
+  
+          if (user && user.city) {
+            const deliverableInventory = inventoryData.some(
+              (inventory) =>
+                inventory.product.equals(product._id) &&
+                inventory.warehouse.location.city.toLowerCase() === user.city.toLowerCase() &&
+                inventory.stockLevel > 0
+            );
+  
+            if (!deliverableInventory) {
+              productWithUrls.deliverable = false;
+            }
+          }
 
             if (productWithUrls.images && productWithUrls.images.length > 0) {
                 const imageUrls = await Promise.all(productWithUrls.images.map(async (image) => {
