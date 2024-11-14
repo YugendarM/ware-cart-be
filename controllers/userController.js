@@ -18,8 +18,8 @@ const s3 = new S3Client({
 const signupUser = async(request, response) => {
     const userData = request.body
     try{
-        const isUserExist = await userModel.findOne({email: userData.email})
-        if(isUserExist){
+        const existingUser = await userModel.findOne({email: userData.email})
+        if(existingUser){
             return response.status(409).send({ status: "failed", code: 409, message: "User already Exist"})
         }
         const hashedPassword = await bcrypt.hash(userData.password, 10)
@@ -36,11 +36,11 @@ const signupUser = async(request, response) => {
             const options = {
                 httpOnly: false,
                 secure: process.env.NODE_ENV === 'production',
-                sameSite: true,
-                maxAge: 2 * 60 * 60 * 1000 
+                sameSite: 'None',
+                maxAge: 8 * 60 * 60 * 1000
             }
             response.cookie("SessionID", AUTH_TOKEN, options)
-            return response.status(201).send({ status: "success", code: 201, message: "User registered successfully"})
+            return response.status(201).send({ status: "success", code: 201, message: "User registered successfully", userData: existingUser})
     }
     catch(error){
         return response.status(500).send({message: error.message})
@@ -59,11 +59,11 @@ const loginUser = async(request, response) => {
             const options = {
                 httpOnly: false,
                 secure: process.env.NODE_ENV === 'production',
-                sameSite: true,
-                maxAge: 2 * 60 * 60 * 1000,
+                sameSite: 'None',
+                maxAge: 8 * 60 * 60 * 1000
             }
             response.cookie("SessionID", AUTH_TOKEN, options)
-            return response.status(200).send({ status: "success", code: 200, message: "Loggin successfull" })
+            return response.status(200).send({ status: "success", code: 200, message: "Loggin successfull", userData: validUser })
         }
         else{
             return response.status(401).send({ status: "failed", code: 401, message: "Wrong Password" })
@@ -106,7 +106,7 @@ const logout = async (request, response) => {
 const getUserDetails = async(request, response) => {
     const userData = request.user  
     try{
-        return response.status(200).send(userData)
+        return response.status(200).send({ status: "success", code: 200, userData })
     }
     catch(error){
         return response.status(500).send({message: error.message})
@@ -145,7 +145,7 @@ const updateUserAddress = async(request, response, io) => {
             },
             {new : true}
         )
-        io.emit("userUpdated", updatedUser)
+        // io.emit("userUpdated", updatedUser)
         return response.status(200).json({status: "success", code: 200, message: "User updated successfully"})
     }
     catch(error){
@@ -168,7 +168,7 @@ const addProductToWishlist = async(request, response, io) => {
             {new: true}
         )
         const updatedWishlist = await productModel.find({ _id: { $in: updatedUser.wishlist } })
-        io.emit("wishlistUpdated", updatedWishlist)
+        io.emit("wishlistUpdated", user.wishlist)
         if(updatedUser){
             io.emit("productAddedToWishlist", updatedUser)
             return response.status(200).json({status: "success", code: 200, message: "Product added to wishlist"})
@@ -217,7 +217,7 @@ const removeProductFromWishlist = async(request, response, io) => {
             return productWithUrls
         }))
         
-        io.emit("wishlistUpdated", productsWithImageUrls)
+        io.emit("wishlistUpdated", user.wishlist)
         if(updatedUser){
             return response.status(200).json({status: "success", code: 200, message: "Product removed from wishlist"})
         }
